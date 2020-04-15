@@ -1,0 +1,8 @@
+dir "/data"
+port {{sentinel_port + services[cluster][subcluster][service]['port_offset']}}
+requirepass {{secrets[cluster][subcluster][service]['password']}}
+sentinel deny-scripts-reconfig yes
+sentinel monitor default {{instances[cluster][subcluster]['srv1']}} {{haproxy_redis_local_port + services[cluster][subcluster][service]['port_offset']}} 2
+sentinel down-after-milliseconds default 5000
+sentinel parallel-syncs default 2
+sentinel auth-pass default {{secrets[cluster][subcluster][service]['password']}}

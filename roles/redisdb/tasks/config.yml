@@ -1,0 +1,86 @@
+# Hosted zone
+domain: example.com
+
+# Slack notification about failover (optional)
+slack_hook:
+slack_channel: mytestchannel
+
+# Setup Commander (Redis web UI), one per host
+# https://github.com/joeferner/redis-commander
+# To set SSL certificate, update path in subcluster.yml
+enable_commander: False
+
+# Setup Redis and Haproxy Exporters, used by Prometheus monitoring, one per host
+# https://github.com/Quiq/redis_exporter
+# https://github.com/Quiq/haproxy_exporter
+enable_exporters: False
+
+# Add backup scripts and cron
+enable_backup: False
+
+# Default ports which will be used with cluster/service specific offset
+redis_port: 36379
+sentinel_port: 26379
+haproxy_api_port: 9899
+haproxy_redis_local_port: 46379
+haproxy_redis_local_ssl_port: 56379
+haproxy_redis_ssl_port: 6379
+haproxy_sentinel_ssl_port: 16379
+
+# Cluster > subcluster > instance.
+# DNS: <subcluster>N.<cluster>.example.com. Example: redisdb1.testcluster1.example.com
+# All subcluster names should start with "redisdb". Default subcluster name is redisdb.
+instances:
+  testcluster1:
+    redisdb:
+      srv1: 172.31.47.55
+      srv2: 172.31.36.118
+      srv3: 172.31.46.213
+  testcluster2:
+    redisdb:
+      srv1: 10.0.2.1
+      srv2: 10.0.2.2
+      srv3: 10.0.2.3
+  testcluster3:
+    redisdb:
+      srv1: 10.0.3.1
+      srv2: 10.0.3.2
+      srv3: 10.0.3.3
+    redisdb-testsubcluster:
+      srv1: 10.0.3.4
+      srv2: 10.0.3.5
+      srv3: 10.0.3.6
+
+
+# Cluster > subcluster > service.
+# Each service is a combination of 3 containers - redis/sentinel/haproxy running on 3 instances.
+# Each service should use an unique port offset within the whole cluster, not just subcluster.
+services:
+  testcluster1:
+    redisdb:
+      perf:
+        port_offset: 0
+        maxmemory: 400mb
+      dev:
+        port_offset: 1
+        maxmemory: 150mb
+      qa:
+        port_offset: 2
+        maxmemory: 100mb
+  testcluster2:
+    redisdb:
+      default:
+        port_offset: 0
+        maxmemory: 100mb
+      testdb1:
+        port_offset: 1
+        maxmemory: 100mb
+  testcluster3:
+    redisdb:
+      default:
+        port_offset: 0
+        maxmemory: 100mb
+    redisdb-testsubcluster:
+      default:
+        port_offset: 0
+        maxmemory: 100mb

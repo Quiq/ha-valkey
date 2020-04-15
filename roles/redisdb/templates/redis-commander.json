@@ -1,0 +1,46 @@
+{
+  "noSave": true,
+  "noLogData": false,
+  "ui": {
+    "sidebarWidth": 250,
+    "locked": false,
+    "cliHeight": 50,
+    "cliOpen": false,
+    "foldingChar": ":"
+  },
+  "redis": {
+    "readOnly": false,
+    "flushOnImport": true,
+    "useScan": false,
+    "scanCount": 100,
+    "rootPattern": "*",
+    "connectionName": "redis-commander",
+    "defaultLabel": "local"
+  },
+  "server": {
+    "address": "127.0.0.1",
+    "port": 18081,
+    "urlPrefix": "",
+    "trustProxy": false,
+    "httpAuth": {
+      "username": "",
+      "password": "",
+      "passwordHash": "",
+      "comment": "to enable http auth set username and either password or passwordHash",
+      "jwtSecret": ""
+    }
+  },
+  "connections": [
+{% for service in services[cluster][subcluster] %}
+    {
+      "label": "{{service}}",
+      "host": "127.0.0.1",
+      "port": "{{haproxy_redis_ssl_port + services[cluster][subcluster][service]['port_offset']}}",
+      "password": "{{secrets[cluster][subcluster][service]['password']}}",
+      "tls": false,
+      "dbIndex": "0"
+    }{% if not loop.last %},{% endif %}
+
+{% endfor %}
+  ]
+}

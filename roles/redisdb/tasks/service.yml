@@ -1,0 +1,167 @@
+---
+# Create directories and set owner
+- name: ">> {{service}} << Directory creation"
+  file:
+    path: "{{item}}"
+    state: directory
+    owner: nobody
+  with_items:
+    - "/opt/haproxy/{{service}}"
+    - "/opt/redis/{{service}}"
+    - "/data/{{service}}/redis"
+    - "/data/{{service}}/sentinel"
+
+- name: ">> {{service}} << Copy certs"
+  copy:
+    src: "{{item}}"
+    dest: /data/
+  with_items:
+    - "example.crt"
+    - "example.key"
+
+# SSL certificate names that will be used for haproxy (should be single file)
+- name: ">> {{service}} << Set facts"
+  set_fact:
+    crt_file: /data/example.crt
+    key_file: /data/example.key
+
+- name: ">> {{service}} << Merge SSL crt and private key into one file for haproxy"
+  shell: cat "{{crt_file}}" "{{key_file}}" > /opt/haproxy/{{service}}/quiq.corp.crt.and.key.pem
+  args:
+    creates: /opt/haproxy/{{service}}/quiq.corp.crt.and.key.pem
+
+- name: ">> {{service}} << Set permissions"
+  file:
+    path: /opt/haproxy/{{service}}/quiq.corp.crt.and.key.pem
+    owner: nobody
+    mode: 0640
+
+# Add configs
+- name: ">> {{service}} << Add redis.conf"
+  template: src=redis.conf dest=/opt/redis/{{service}}/ mode=0640 owner=nobody
+  register: redis_conf
+
+- name: ">> {{service}} << Add sentinel.conf.tmpl"
+  template: src=sentinel.conf.tmpl dest=/opt/redis/{{service}}/ mode=0660 owner=nobody
+  register: sentinel_conf
+
+# Sentinel uses sentinel.conf to write temporary configuration like id,
+# so it will be always different from Ansible version, that's why we use tmpl instead
+- name: ">> {{service}} << Copy sentinel.conf.tmpl to sentinel.conf"
+  copy:
+    src: /opt/redis/{{service}}/sentinel.conf.tmpl
+    dest: /opt/redis/{{service}}/sentinel.conf
+    remote_src: yes
+    owner: nobody
+    mode: 0660
+  when: sentinel_conf.changed
+
+- name: ">> {{service}} << Add haproxy.cfg"
+  template: src=haproxy.cfg dest=/opt/haproxy/{{service}}/ mode=0640 owner=nobody
+  register: haproxy_cfg
+
+- name: ">> {{service}} << Run redis container"
+  docker_container:
+    name: redis-{{service}}
+    labels: {"name": "redis-{{service}}"}
+    image: redis:{{redis_version}}
+    command: redis-server /etc/redis.conf
+    state: started
+    restart_policy: always
+    network_mode: host
+    read_only: True
+    user: 65534
+    volumes:
+      - /opt/redis/{{service}}/redis.conf:/etc/redis.conf:ro
+      - /data/{{service}}/redis:/data:rw
+  register: redis_container
+
+- name: ">> {{service}} << Restart redis"
+  command: docker restart redis-{{service}}
+  when: "restart_var is defined and 'redis' in restart_var"
+
+- name: ">> {{service}} << Run sentinel container"
+  docker_container:
+    name: sentinel-{{service}}
+    labels: {"name": "sentinel-{{service}}"}
+    image: redis:{{redis_version}}
+    command: redis-server /etc/sentinel.conf --sentinel
+    state: started
+    restart_policy: always
+    network_mode: host
+    read_only: True
+    user: 65534
+    volumes:
+      - /opt/redis/{{service}}/sentinel.conf:/etc/sentinel.conf:rw
+      - /data/{{service}}/sentinel:/data:rw
+  register: sentinel_container
+
+- name: ">> {{service}} << Restart sentinel"
+  command: docker restart sentinel-{{service}}
+  when: "restart_var is defined and 'sentinel' in restart_var"
+
+- name: ">> {{service}} << Run haproxy container"
+  docker_container:
+    name: haproxy-{{service}}
+    labels: {"name": "haproxy-{{service}}"}
+    image: haproxy:{{haproxy_version}}
+    state: started
+    restart_policy: always
+    network_mode: host
+    read_only: True
+    user: 65534
+    volumes:
+      - /opt/haproxy/{{service}}/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - /opt/haproxy/{{service}}/quiq.corp.crt.and.key.pem:/etc/quiq.corp.crt.and.key.pem:ro
+  register: haproxy_container
+
+- name: ">> {{service}} << Restart haproxy"
+  command: docker restart haproxy-{{service}}
+  when: "restart_var is defined and 'haproxy' in restart_var"
+
+# Custom subcluster is used when we need to crete new subcluster and connect it as replicas of parent subcluster
+# in order to migrade some services from parent (original) subcluster
+- set_fact:
+    parent_subcluster_var: "{{subcluster}}"
+  when: "parent_subcluster_var is not defined"
+
+# Configure roles
+- name: ">> {{service}} << Figure out current master using local python script"
+  become: false
+  local_action: command scripts/redis-get-master.py --cluster {{cluster}} --subcluster {{parent_subcluster_var}} --db {{service}}
+  register: current_master
+  changed_when: false
+
+- name: ">> {{service}} << Show master"
+  debug:
+    msg: "Current master is {{current_master.stdout}}"
+
+- name: ">> {{service}} << Check if node is configured as master/slave"
+  shell: |
+      /usr/bin/redis-cli -h localhost -p {{haproxy_redis_local_port + services[cluster][subcluster][service]['port_offset']}} \
+                         -a {{secrets[cluster][subcluster][service]['password']}} info Replication | grep 'master_link_status:up\|role:master' || true
+  args:
+    executable: /bin/bash
+  register: redis_role
+  changed_when: false
+  no_log: False
+
+- name: ">> {{service}} << Configure default master instance"
+  command: |
+      /usr/bin/redis-cli -h localhost -p {{haproxy_redis_local_port + services[cluster][subcluster][service]['port_offset']}} \
+                         -a {{secrets[cluster][subcluster][service]['password']}} slaveof no one
+  when:
+    - 'ansible_default_ipv4.address == current_master.stdout and ("master_link_status:up" != redis_role.stdout)'
+    - 'ansible_default_ipv4.address == current_master.stdout and ("role:master" != redis_role.stdout)'
+  no_log: False
+
+- name: ">> {{service}} << Configure default slave instance"
+  command: |
+      /usr/bin/redis-cli -h localhost -p {{haproxy_redis_local_port + services[cluster][subcluster][service]['port_offset']}} \
+                         -a {{secrets[cluster][subcluster][service]['password']}} \
+                         slaveof {{current_master.stdout}} \
+                         {{haproxy_redis_local_port + services[cluster][subcluster][service]['port_offset']}}
+  when:
+    - 'ansible_default_ipv4.address != current_master.stdout and ("master_link_status:up" != redis_role.stdout)'
+    - 'ansible_default_ipv4.address != current_master.stdout and ("role:master" != redis_role.stdout)'
+  no_log: False

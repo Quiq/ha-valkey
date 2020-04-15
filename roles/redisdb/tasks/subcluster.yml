@@ -1,0 +1,178 @@
+---
+
+# Setup third-party tools for debugging purpose
+- name: Install redis-cli and docker
+  apt:
+    update_cache: yes
+    pkg:
+      - redis-tools
+      - docker.io
+      - python3-pip
+
+- name: Docker python lib
+  pip:
+    name: docker
+    executable: pip3
+
+# Disable Transparent Huge Pages
+- name: Inject kernel.mm.transparent_hugepage
+  shell: "echo never > /sys/kernel/mm/transparent_hugepage/enabled && touch {{ansible_env.HOME}}/.kernel.mm.transparent_hugepage.never"
+  args:
+    creates: "{{ansible_env.HOME}}/.kernel.mm.transparent_hugepage.never"
+
+- name: Ensure auditing for processes that start prior to auditd is enabled 1/2 (configure grub)
+  replace:
+    path: /etc/default/grub
+    regexp: 'GRUB_CMDLINE_LINUX_DEFAULT=""'
+    replace: 'GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 transparent_hugepage=never"'
+  register: grub
+
+- name: Ensure auditing for processes that start prior to auditd is enabled 2/2 (update initrd image)
+  shell: update-grub
+  when: grub.changed
+
+# Add reserved ports we use to the ephemeral range
+- name: Reserve tcp ports in ephemeral port range
+  sysctl: >
+    name=net.ipv4.ip_local_reserved_ports
+    value="36379-36479,46379-46479,56379-56479"
+    state=present
+    ignoreerrors=yes
+
+# Enable vm.overcommit_memory, recommended by Redis
+- name: Enable vm.overcommit_memory
+  sysctl: >
+    name=vm.overcommit_memory
+    value=1
+    state=present
+    ignoreerrors=yes
+
+# Increase "net/core" subsys registered per network namespace
+- name: Increase net.core.somaxconn
+  sysctl: >
+    name=net.core.somaxconn
+    value=65535
+    state=present
+    ignoreerrors=yes
+
+# Setup Redis
+- name: Pull docker images
+  command: docker pull {{item}}
+  with_items:
+    - redis:{{redis_version}}
+    - haproxy:{{haproxy_version}}
+  register: docker_pull
+  changed_when: '"Downloaded newer image" in docker_pull.stdout'
+
+- set_fact: servicelist={{services[cluster][subcluster]}}
+- set_fact:
+    servicelist:
+      "{{db_var}}": "{{services[cluster][subcluster][db_var]}}"
+  when: db_var is defined
+
+- name: Iterate over services inside the subcluster
+  include_tasks: service.yml
+  with_dict:
+    - "{{servicelist}}"
+  loop_control:
+    loop_var: service_item
+  vars:
+    service: "{{service_item.key}}"
+
+# Setup redis-commander
+- name: Install redis-commander.json
+  template: src=redis-commander.json dest=/opt/redis/ mode=0640 group=nogroup
+  register: redis_commander_conf
+  when: enable_commander
+
+- name: Start redis-commander container
+  docker_container:
+    name: redis-commander
+    labels: {"name": "redis-commander"}
+    image: quiq/redis-commander:{{redis_commander_version}}
+    state: started
+    restart_policy: always
+    network_mode: host
+    user: 65534:65534
+    read_only: True
+    env:
+      USE_SCAN=true
+      NODE_EXTRA_CA_CERTS=/example.crt
+    volumes:
+      - /data/example.crt:/example.crt:ro
+      - /opt/redis/redis-commander.json:/redis-commander/config/local-production.json:ro
+  when: enable_commander
+
+- name: Restart redis-commander
+  command: docker restart redis-commander
+  when: enable_commander and redis_commander_conf.changed
+
+- name: Install redis_exporter.config
+  template: src=redis_exporter.config dest=/opt/redis/ mode=0640 group=nogroup
+  register: redis_exporter_conf
+  when: enable_exporters
+
+- name: Start redis_exporter container
+  docker_container:
+    name: redis_exporter
+    labels: {"name": "redis_exporter"}
+    image: quiq/redis_exporter:{{redis_exporter_version}}
+    command: -web.listen-address=127.0.0.1:9121 -redis.file=/redis_exporter.config
+    state: started
+    restart_policy: always
+    network_mode: host
+    user: 65534:65534
+    read_only: True
+    volumes:
+      - /opt/redis/redis_exporter.config:/redis_exporter.config:ro
+  when: enable_exporters
+
+- name: Restart redis_exporter
+  command: docker restart redis_exporter
+  when: enable_exporters and redis_exporter_conf.changed
+
+- name: Start haproxy_exporter container
+  docker_container:
+    name: haproxy_exporter
+    labels: {"name": "haproxy_exporter"}
+    image: quiq/haproxy_exporter:{{haproxy_exporter_version}}
+    command: >
+      --web.listen-address=127.0.0.1:9101
+      --haproxy.scrape-uris="{% for service in services[cluster][subcluster] -%}tcp://127.0.0.1:{{haproxy_api_port + services[cluster][subcluster][service]['port_offset']}}/{{service}}{%- if not loop.last -%},{%- endif -%}{% endfor %}"
+    state: started
+    restart_policy: always
+    network_mode: host
+    user: 65534:65534
+    read_only: True
+  when: enable_exporters
+
+- name: Install pip packages
+  pip: name={{ packages }} umask=0022 executable=pip3 state=latest
+  vars:
+    packages:
+    - redis
+  when: enable_backup
+
+- name: Copy redis backup script
+  copy: src={{item}} dest=/opt/ mode=0755
+  with_items:
+    - scripts/common_redis.py
+    - scripts/redis-backup.py
+  when: enable_backup
+
+- name: Copy redis backup config
+  template: src=redis-backup-config.yml dest=/opt/ mode=0600
+  when: enable_backup
+
+- set_fact:
+    run_minute="{{ 14|random(seed=inventory_hostname) }}"
+  when: enable_backup
+
+- name: Add redis-backup cron
+  cron:
+    name: redis-backup
+    cron_file: backups
+    user: root
+    minute: "{{run_minute}},{{run_minute|int + 15}},{{run_minute|int + 30}},{{run_minute|int + 45}}"
+    job: "/opt/redis-backup.py >> /tmp/redis-backup.out 2>&1"
+  when: enable_backup

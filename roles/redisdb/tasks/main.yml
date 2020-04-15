@@ -1,0 +1,34 @@
+---
+- include_vars: config.yml
+
+## NOTE: There are many ways to let Ansible know what cluster/subcluster you are deploying
+## here for example we are using "ec2_instance_facts" module to get AWS EC2 tags
+# # Collect EC2 tags and set facts
+# - local_action:
+#     module: ec2_instance_facts
+#     filters:
+#       "tag:stack_server_type": "{{cluster}}:redisdb"
+#   become: false
+## but for demo these values simply hardcoded
+- set_fact: cluster="testcluster1"
+- set_fact: ec2_tag_redis_subcluster="redisdb"
+#
+
+- set_fact: subclusters={{services[cluster]}}
+- set_fact:
+    subcluster_var: redisdb
+  when: db_var is defined and not subcluster_var is defined
+- set_fact:
+    subclusters:
+      "{{subcluster_var}}": "{{services[cluster][subcluster_var]}}"
+  when: subcluster_var is defined
+
+- name: Iterate over subclusters inside the cluster
+  include_tasks: subcluster.yml
+  with_dict:
+    - "{{subclusters}}"
+  loop_control:
+    loop_var: subcluster_item
+  vars:
+    subcluster: "{{subcluster_item.key}}"
+  # when: "ec2_tag_redis_subcluster == cluster+':'+subcluster_item.key"

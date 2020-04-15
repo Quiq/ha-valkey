@@ -1,0 +1,11 @@
+haproxy_redis_local_ssl_port: {{haproxy_redis_local_ssl_port}}
+haproxy_sentinel_ssl_port: {{haproxy_sentinel_ssl_port}}
+
+# cluster: {{cluster}}
+# subcluster: {{subcluster}}
+databases:
+{% for service in services[cluster][subcluster] %}
+  {{service}}:
+    port_offset: {{services[cluster][subcluster][service]['port_offset']}}
+    password: {{secrets[cluster][subcluster][service]['password']}}
+{% endfor %}
