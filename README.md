@@ -33,7 +33,7 @@ In this repo vars file with passwords and certificate key are stored in clear te
 ## FAQ
 * What clients are you using to make Sentinels/Redis connections encrypted with TLS?
   - Java (our PR) https://github.com/xetorthio/jedis/pull/2139
-  - Go (our fork) https://github.com/Quiq/redis
+  - Go https://github.com/go-redis/redis
   - Python (support TLS out of the box) https://pypi.org/project/redis
 * What if I can't use sentinel aware driver?
   - Thanks to HA-Proxy you will always be routed to master, no matter what instance you are connected to. You just need to figure out how to reconnect your client to another instance if the first one is gone.
