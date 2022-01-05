@@ -6,13 +6,24 @@
     update_cache: yes
     pkg:
       - redis-tools
-      - docker.io
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
       - python3-pip
+
+- name: Copy redis get-master script
+  copy: src=../../../scripts/{{item}} dest=/opt/cent/bin/ mode=0755
+  with_items:
+    - common_redis.py
+    - redis-get-master.py
 
 - name: Docker python lib
   pip:
-    name: docker
+    name: "{{item}}"
     executable: pip3
+  with_items:
+    - docker
+    - redis
 
 # Disable Transparent Huge Pages
 - name: Inject kernel.mm.transparent_hugepage

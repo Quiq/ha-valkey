@@ -32,24 +32,25 @@ haproxy_sentinel_ssl_port: 16379
 # All subcluster names should start with "redisdb". Default subcluster name is redisdb.
 instances:
   testcluster1:
-    redisdb:
-      srv1: 172.31.47.55
-      srv2: 172.31.36.118
-      srv3: 172.31.46.213
-  testcluster2:
-    redisdb:
-      srv1: 10.0.2.1
-      srv2: 10.0.2.2
-      srv3: 10.0.2.3
-  testcluster3:
-    redisdb:
-      srv1: 10.0.3.1
-      srv2: 10.0.3.2
-      srv3: 10.0.3.3
-    redisdb-testsubcluster:
-      srv1: 10.0.3.4
-      srv2: 10.0.3.5
-      srv3: 10.0.3.6
+    redisdb-mytest:
+      srv1: 10.0.7.72
+      srv2: 10.0.7.142
+      srv3: 10.0.7.202
+
+  # testcluster2:
+  #   redisdb:
+  #     srv1: 10.0.2.1
+  #     srv2: 10.0.2.2
+  #     srv3: 10.0.2.3
+  # testcluster3:
+  #   redisdb:
+  #     srv1: 10.0.3.1
+  #     srv2: 10.0.3.2
+  #     srv3: 10.0.3.3
+  #   redisdb-testsubcluster:
+  #     srv1: 10.0.3.4
+  #     srv2: 10.0.3.5
+  #     srv3: 10.0.3.6
 
 
 # Cluster > subcluster > service.
@@ -57,30 +58,30 @@ instances:
 # Each service should use an unique port offset within the whole cluster, not just subcluster.
 services:
   testcluster1:
-    redisdb:
-      perf:
+    redisdb-mytest:
+      default:
         port_offset: 0
         maxmemory: 400mb
-      dev:
-        port_offset: 1
-        maxmemory: 150mb
-      qa:
-        port_offset: 2
-        maxmemory: 100mb
-  testcluster2:
-    redisdb:
-      default:
-        port_offset: 0
-        maxmemory: 100mb
-      testdb1:
-        port_offset: 1
-        maxmemory: 100mb
-  testcluster3:
-    redisdb:
-      default:
-        port_offset: 0
-        maxmemory: 100mb
-    redisdb-testsubcluster:
-      default:
-        port_offset: 0
-        maxmemory: 100mb
+  #     dev:
+  #       port_offset: 1
+  #       maxmemory: 150mb
+  #     qa:
+  #       port_offset: 2
+  #       maxmemory: 100mb
+  # testcluster2:
+  #   redisdb:
+  #     default:
+  #       port_offset: 0
+  #       maxmemory: 100mb
+  #     testdb1:
+  #       port_offset: 1
+  #       maxmemory: 100mb
+  # testcluster3:
+  #   redisdb:
+  #     default:
+  #       port_offset: 0
+  #       maxmemory: 100mb
+  #   redisdb-testsubcluster:
+  #     default:
+  #       port_offset: 0
+  #       maxmemory: 100mb

@@ -32,8 +32,11 @@ def show_status(cluster, subcluster, db, list_only, no_sentinel):
     hostnames = {}
     for i in range(1, len(host_aliases)+1):
         host = f'{subcluster}{i}.{cluster}.{domain}'
-
-        hostnames[host] = socket.gethostbyname(host)
+        try:
+            hostnames[host] = socket.gethostbyname(host)
+        except:
+            print(f' 👉 Error: Hostname {host} can\'t be resolved')
+            sys.exit()
 
     print(f'Hosts: {hostnames}')
     print()

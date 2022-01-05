@@ -127,8 +127,7 @@
 
 # Configure roles
 - name: ">> {{service}} << Figure out current master using local python script"
-  become: false
-  local_action: command scripts/redis-get-master.py --cluster {{cluster}} --subcluster {{parent_subcluster_var}} --db {{service}}
+  shell: /opt/cent/bin/redis-get-master.py --cluster {{cluster}} --db {{service}} --subcluster {{parent_subcluster_var}}
   register: current_master
   changed_when: false
 

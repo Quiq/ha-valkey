@@ -1,10 +1,10 @@
 ---
 - name: Install Redis HA cluster
   hosts: redisha
-  remote_user: root
+  remote_user: ubuntu
   serial: 1
-  # become: yes
-  # become_method: sudo
+  become: yes
+  become_method: sudo
 
   roles:
     - redisdb
