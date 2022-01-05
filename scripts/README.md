@@ -16,7 +16,7 @@ Database                 Redis Port     redisdb-mytest1                    redis
 ------------------------------------------------------------------------------------------------------------------------------------------------------
 default                  6379           slave                              MASTER                             slave
 
-$ ./redis-commander.py -c testcluster1 --subcluster redisdb-mytest --db default --command "config get maxmemory"                    ✔  10321  13:19:01
+$ ./redis-commander.py -c testcluster1 --subcluster redisdb-mytest --db default --command "config get maxmemory"
 Cluster: testcluster1
 Subcluster: redisdb-mytest
 Databases and port offsets: {'default': 0}
