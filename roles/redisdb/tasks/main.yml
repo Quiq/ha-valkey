@@ -11,24 +11,109 @@
 #   become: false
 ## but for demo these values simply hardcoded
 - set_fact: cluster="testcluster1"
-- set_fact: ec2_tag_redis_subcluster="redisdb"
+## here we assume that hostname is like redisdb-mysubcluster1.testcluster.example.com
+- set_fact:
+    subcluster: "{{ansible_hostname|regex_replace('\\d+$', '')}}"
 #
 
-- set_fact: subclusters={{services[cluster]}}
-- set_fact:
-    subcluster_var: redisdb
-  when: db_var is defined and not subcluster_var is defined
-- set_fact:
-    subclusters:
-      "{{subcluster_var}}": "{{services[cluster][subcluster_var]}}"
-  when: subcluster_var is defined
+# Setup third-party tools for debugging purpose
+- name: Install redis-cli and docker
+  apt:
+    update_cache: yes
+    pkg:
+      - redis-tools
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - python3-pip
 
-- name: Iterate over subclusters inside the cluster
-  include_tasks: subcluster.yml
+# Special user to identify traffic from sentinel containers and direct it over haproxy
+# This adds haproxy to the monitoring chain and failover will be triggered in a case when haproxy on master went down
+- user:
+    name: sentinel
+    comment: "Used to run Redis Sentinel containers"
+    uid: 64446
+    shell: /usr/sbin/nologin
+    group: nogroup
+    create_home: no
+
+- name: Copy redis get-master script
+  copy: src=../../../scripts/{{item}} dest=/opt/cent/bin/ mode=0755
+  with_items:
+    - common_redis.py
+    - redis-get-master.py
+
+- name: Docker python lib
+  pip:
+    name: ['docker', 'redis']
+    executable: pip3
+
+# Disable Transparent Huge Pages
+- name: Inject kernel.mm.transparent_hugepage
+  shell: "echo never > /sys/kernel/mm/transparent_hugepage/enabled && touch {{ansible_env.HOME}}/.kernel.mm.transparent_hugepage.never"
+  args:
+    creates: "{{ansible_env.HOME}}/.kernel.mm.transparent_hugepage.never"
+
+- name: Ensure auditing for processes that start prior to auditd is enabled 1/2 (configure grub)
+  replace:
+    path: /etc/default/grub
+    regexp: 'GRUB_CMDLINE_LINUX_DEFAULT=""'
+    replace: 'GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 transparent_hugepage=never"'
+  register: grub
+
+- name: Ensure auditing for processes that start prior to auditd is enabled 2/2 (update initrd image)
+  shell: update-grub
+  when: grub.changed
+
+# Add reserved ports we use to the ephemeral range
+- name: Reserve tcp ports in ephemeral port range
+  sysctl: >
+    name=net.ipv4.ip_local_reserved_ports
+    value="36379-36479,46379-46479,56379-56479"
+    state=present
+    ignoreerrors=yes
+
+# Enable vm.overcommit_memory, recommended by Redis
+- name: Enable vm.overcommit_memory
+  sysctl: >
+    name=vm.overcommit_memory
+    value=1
+    state=present
+    ignoreerrors=yes
+
+# Increase "net/core" subsys registered per network namespace
+- name: Increase net.core.somaxconn
+  sysctl: >
+    name=net.core.somaxconn
+    value=65535
+    state=present
+    ignoreerrors=yes
+
+# Setup Redis
+- name: Pull docker images
+  command: docker pull {{item}}
+  with_items:
+    - redis:{{redis_version}}
+    - haproxy:{{haproxy_version}}
+  register: docker_pull
+  changed_when: '"Downloaded newer image" in docker_pull.stdout'
+
+# Setup list of services per subcluster
+- set_fact: servicelist={{services[cluster][subcluster]}}
+- set_fact:
+    servicelist:
+      - key: "{{db_var}}"
+        value: "{{services[cluster][subcluster][db_var]}}"
+  when: db_var is defined
+
+- set_fact: servicelist={{servicelist|items2dict}}
+  when: db_var is defined
+
+- name: Iterate over services inside the subcluster
+  include_tasks: service.yml
   with_dict:
-    - "{{subclusters}}"
+    - "{{servicelist}}"
   loop_control:
-    loop_var: subcluster_item
+    loop_var: service_item
   vars:
-    subcluster: "{{subcluster_item.key}}"
-  # when: "ec2_tag_redis_subcluster == cluster+':'+subcluster_item.key"
+    service: "{{service_item.key}}"

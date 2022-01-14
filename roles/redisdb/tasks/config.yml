@@ -5,19 +5,6 @@ domain: example.com
 slack_hook:
 slack_channel: mytestchannel
 
-# Setup Commander (Redis web UI), one per host
-# https://github.com/joeferner/redis-commander
-# To set SSL certificate, update path in subcluster.yml
-enable_commander: False
-
-# Setup Redis and Haproxy Exporters, used by Prometheus monitoring, one per host
-# https://github.com/Quiq/redis_exporter
-# https://github.com/Quiq/haproxy_exporter
-enable_exporters: False
-
-# Add backup scripts and cron
-enable_backup: False
-
 # Default ports which will be used with cluster/service specific offset
 redis_port: 36379
 sentinel_port: 26379
