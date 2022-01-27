@@ -493,12 +493,17 @@ class Haproxy:
 
 def sentinel_pubsubs(hosts, port, password, channel):
     """Subscribe to all sentinels."""
+    if 'SSL_VERIFY_FALSE' in os.environ:
+        sslverify = 'none'
+    else:
+        sslverify = 'required'
+
     pubsubs = {}
     for host in hosts:
         try:
             print(f'- {host}:{port} SUBSCRIBE {channel}')
             r = redis.Redis(host=host, port=port, password=password,
-                            socket_connect_timeout=common.TIMEOUT, ssl=True, ssl_ca_certs=CONFIG_FILES['TLS_CA_CERTS'])
+                            socket_connect_timeout=common.TIMEOUT, ssl=True, ssl_cert_reqs=sslverify, ssl_ca_certs=CONFIG_FILES['TLS_CA_CERTS'])
             r.ping()
             pubsubs[host] = r.pubsub()
             pubsubs[host].subscribe(channel)

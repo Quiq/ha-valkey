@@ -36,13 +36,24 @@
     owner: nobody
     mode: 0640
 
+- name: ">> {{service}} << Forward sentinel over haproxy with iptables"
+  ansible.builtin.iptables:
+    table: nat
+    chain: OUTPUT
+    protocol: tcp
+    uid_owner: 64446
+    destination_port: "{{redis_port + services[cluster][subcluster][service]['port_offset']}}"
+    jump: DNAT
+    to_destination: ":{{haproxy_redis_local_port + services[cluster][subcluster][service]['port_offset']}}"
+    comment: "iptables_sentinel_forward_{{redis_port + services[cluster][subcluster][service]['port_offset']}}"
+
 # Add configs
 - name: ">> {{service}} << Add redis.conf"
   template: src=redis.conf dest=/opt/redis/{{service}}/ mode=0640 owner=nobody
   register: redis_conf
 
 - name: ">> {{service}} << Add sentinel.conf.tmpl"
-  template: src=sentinel.conf.tmpl dest=/opt/redis/{{service}}/ mode=0660 owner=nobody
+  template: src=sentinel.conf.tmpl dest=/opt/redis/{{service}}/ mode=0660 owner=sentinel
   register: sentinel_conf
 
 # Sentinel uses sentinel.conf to write temporary configuration like id,
@@ -52,7 +63,7 @@
     src: /opt/redis/{{service}}/sentinel.conf.tmpl
     dest: /opt/redis/{{service}}/sentinel.conf
     remote_src: yes
-    owner: nobody
+    owner: sentinel
     mode: 0660
   when: sentinel_conf.changed
 
@@ -90,7 +101,7 @@
     restart_policy: always
     network_mode: host
     read_only: True
-    user: 65534
+    user: 64446
     volumes:
       - /opt/redis/{{service}}/sentinel.conf:/etc/sentinel.conf:rw
       - /data/{{service}}/sentinel:/data:rw
@@ -127,8 +138,7 @@
 
 # Configure roles
 - name: ">> {{service}} << Figure out current master using local python script"
-  become: false
-  local_action: command scripts/redis-get-master.py --cluster {{cluster}} --subcluster {{parent_subcluster_var}} --db {{service}}
+  shell: /opt/cent/bin/redis-get-master.py --cluster {{cluster}} --db {{service}} --subcluster {{parent_subcluster_var}}
   register: current_master
   changed_when: false
 

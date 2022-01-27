@@ -84,9 +84,14 @@ class Redis:
 
     def get_client(self, host, port, password):
         """Return client."""
+        if 'SSL_VERIFY_FALSE' in os.environ:
+            sslverify = 'none'
+        else:
+            sslverify = 'required'
+
         try:
             r = redis.Redis(host=host, port=port, password=password, socket_timeout=self.timeout,
-                            socket_connect_timeout=self.timeout, ssl=True, ssl_ca_certs=config_files['TLS_CA_CERTS'])
+                            socket_connect_timeout=self.timeout, ssl=True, ssl_cert_reqs=sslverify, ssl_ca_certs=config_files['TLS_CA_CERTS'])
             r.ping()
         except (redis.exceptions.ConnectionError, redis.exceptions.ResponseError, redis.exceptions.TimeoutError) as err:
             if self.verbose or self.debug:

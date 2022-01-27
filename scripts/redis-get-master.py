@@ -6,34 +6,31 @@ import socket
 
 import common_redis as common
 
-global CONFIG_FILES, CONFIG, SECRETS, DEBUG
 
-
-def get_current_master(cluster, subcluster, db):
+def get_current_master(cluster, db, subcluster):
     """Get current master."""
-    password = SECRETS[cluster][subcluster][db]['password']
-    port_offset = CONFIG['services'][cluster][subcluster][db]['port_offset']
-    sentinel_port = CONFIG['haproxy_sentinel_ssl_port'] + port_offset
+    redis_conf = f'/opt/redis/{db}/redis.conf'
 
-    # Resolve host aliases.
-    host_aliases = [i for i in CONFIG['instances'][cluster][subcluster]]
-    alias_ips = {}
-    for i in range(1, len(host_aliases)+1):
-        host = f'{subcluster}{i}.{cluster}.example.com'
+    with open(redis_conf, 'r') as conf:
+        for line in conf.readlines():
+            if 'requirepass' in line:
+                password = line.split(' ')[1].rstrip()
+            if 'port' == line.split(' ')[0]:
+                sentinel_port = int(line.split(' ')[1]) - 20000
 
-        ip = socket.gethostbyname(host)
-        alias_ips[host_aliases[i-1]] = ip
+    redis_obj = common.Redis(False, verbose=False, timeout=1)
+    hostname = socket.gethostname()
 
-    redis_obj = common.Redis(DEBUG, verbose=False, timeout=1)
-    for host in alias_ips.values():
-        # Query sentinel one by one until first response.
+    # Query sentinel
+    for i in range(1, 4):
+        host = subcluster + str(i) + '.' + '.'.join(hostname.split('.')[1:])
         master_ip = redis_obj.run_command(host, sentinel_port, password, 'SENTINEL GET-MASTER-ADDR-BY-NAME default')
         if master_ip:
             break
 
     if not master_ip:
         # Return the IP of the first db, usually srv1.
-        master_ip = alias_ips[host_aliases[0]]
+        master_ip = socket.gethostbyname(subcluster + '1' + '.' + '.'.join(hostname.split('.')[1:]))
     else:
         master_ip = master_ip[0].decode()
 
@@ -44,16 +41,11 @@ def main():
     """Main."""
     parser = argparse.ArgumentParser(description='Get Redis master IP')
     parser.add_argument('--cluster', '-c', help='cluster name', required=True)
-    parser.add_argument('--subcluster', '-s', help='subcluster name', default='redisdb')
+    parser.add_argument('--subcluster', '-s', help='redis db subcluster', required=True)
     parser.add_argument('--db', '-d', help='redis db name', required=True)
-    parser.add_argument('--debug', help='debug mode', action='store_true')
     args = parser.parse_args()
 
-    global CONFIG_FILES, CONFIG, SECRETS, DEBUG
-    DEBUG = args.debug
-    CONFIG_FILES, CONFIG, SECRETS = common.read_redis_configs(DEBUG)
-
-    get_current_master(args.cluster, args.subcluster, args.db)
+    get_current_master(args.cluster, args.db, args.subcluster)
 
 
 if __name__ == '__main__':

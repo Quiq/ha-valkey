@@ -8,37 +8,38 @@ import time
 
 import common_redis as common
 
-global CONFIG_FILES, CONFIG, SECRETS, DEBUG
 
-
-def show_status(cluster, subcluster, db, list_only, no_sentinel):
+def show_status(args, subcluster, config, secrets):
     """Show status on a specific cluster and subcluster."""
     domain = CONFIG['domain']
-    databases = {k: v['port_offset'] for k, v in CONFIG['services'][cluster][subcluster].items()}
+    databases = {k: v['port_offset'] for k, v in CONFIG['services'][args.cluster][subcluster].items()}
     databases = {k: databases[k] for k in sorted(databases, key=databases.get)}
-    if db in databases:
-        databases = {db: databases[db]}
-    elif db is not None:
-        print(f'No such database for "{cluster}" cluster and "{subcluster}" subcluster.')
+    if args.db in databases:
+        databases = {args.db: databases[args.db]}
+    elif args.db is not None:
+        print(f'No such database for "{args.cluster}" cluster and "{subcluster}" subcluster.')
         print(f'Valid databases are: {list(databases.keys())}')
         sys.exit(1)
 
-    print(f'Cluster: {cluster}')
+    print(f'Cluster: {args.cluster}')
     print(f'Subcluster: {subcluster}')
     print(f'Databases and port offsets: {databases}')
 
     # Resolve host aliases.
-    host_aliases = [i for i in CONFIG['instances'][cluster][subcluster]]
+    host_aliases = [i for i in config['instances'][args.cluster][subcluster]]
     hostnames = {}
     for i in range(1, len(host_aliases)+1):
-        host = f'{subcluster}{i}.{cluster}.{domain}'
-
-        hostnames[host] = socket.gethostbyname(host)
+        host = f'{subcluster}{i}.{args.cluster}.{domain}'
+        try:
+            hostnames[host] = socket.gethostbyname(host)
+        except:
+            print(f' 👉 Error: Hostname {host} can\'t be resolved')
+            sys.exit()
 
     print(f'Hosts: {hostnames}')
     print()
 
-    if list_only:
+    if args.list_only:
         sys.exit()
 
     # Draw table header.
@@ -57,26 +58,28 @@ def show_status(cluster, subcluster, db, list_only, no_sentinel):
     print()
     print('-'*150)
 
-    redis_obj = common.Redis(DEBUG, verbose=False)
+    redis_obj = common.Redis(args.debug, verbose=False)
     for db, port_offset in databases.items():
-        password = SECRETS[cluster][subcluster][db]['password']
-        redis_port = CONFIG['haproxy_redis_ssl_port'] + port_offset
-        direct_redis_port = CONFIG['haproxy_redis_local_ssl_port'] + port_offset
-        sentinel_port = CONFIG['haproxy_sentinel_ssl_port'] + port_offset
+        password = secrets[args.cluster][subcluster][db]['password']
+        redis_port = config['haproxy_redis_ssl_port'] + port_offset
+        direct_redis_port = config['haproxy_redis_local_ssl_port'] + port_offset
+        sentinel_port = config['haproxy_sentinel_ssl_port'] + port_offset
 
         redis_info = {}
         sentinel_info = {}
+        sentinel_sentinels = {}
         config_info = {}
         for host in hostnames:
             # Straight Redis via HAProxy SSL.
             redis_info[host] = redis_obj.run_command(host, direct_redis_port, password, ['INFO', 'replication'])
             config_info[host] = redis_obj.run_command(host, direct_redis_port, password, 'CONFIG GET min-slaves-to-write')
 
-            if no_sentinel:
+            if args.no_sentinel:
                 continue
 
             # Sentinel via HAProxy SSL.
             sentinel_info[host] = redis_obj.run_command(host, sentinel_port, password, 'SENTINEL GET-MASTER-ADDR-BY-NAME default')
+            sentinel_sentinels[host] = redis_obj.run_command(host, sentinel_port, password, 'SENTINEL SENTINELS default')
 
         print(f'{db:25}', end='')
         print(f'{redis_port:<15}', end='')
@@ -91,7 +94,7 @@ def show_status(cluster, subcluster, db, list_only, no_sentinel):
                 role = redis_info[host]['role']
             else:
                 # Re-init redis_obj with much lower timeout.
-                redis_obj = common.Redis(DEBUG, verbose=False, timeout=1)
+                redis_obj = common.Redis(args.debug, verbose=False, timeout=1)
                 del alive_hostnames[host]
 
             if role == 'master':
@@ -115,18 +118,18 @@ def show_status(cluster, subcluster, db, list_only, no_sentinel):
 
         print()
         if slave_of_itself:
-            print(f' 👉 Error: one of the slaves has not reconfigured yet.')
-            print(f' 💡 It is possible in case of failover or redis was restarted and sentinels have not reconfigured it yet (may take up to 5m).')
+            print(' 👉 Error: one of the slaves has not reconfigured yet.')
+            print(' 💡 It is possible in case of failover or redis was restarted and sentinels have not reconfigured it yet (may take up to 5m).')
             print()
 
         if alien_master:
-            print(f' 👉 Error: one of the slaves has master host outside of this subcluster 🛸')
-            print(f' 💡 Looks like you made or about to make a failover between subclusters.')
+            print(' 👉 Error: one of the slaves has master host outside of this subcluster 🛸')
+            print(' 💡 Looks like you made or about to make a failover between subclusters.')
             print()
 
         if not master_host:
-            print(f' 👉 Error: no master detected in this subcluster.')
-            print(f' 💡 Looks like the master is down and there is ongoing failover process. Check back again.')
+            print(' 👉 Error: no master detected in this subcluster.')
+            print(' 💡 Looks like the master is down and there is ongoing failover process. Check back again.')
             print()
             continue
 
@@ -138,19 +141,19 @@ def show_status(cluster, subcluster, db, list_only, no_sentinel):
 
         if len(alive_hostnames)-1 == 0:
             print(f' 👉 Error: master host reports {slave_count} slaves {slaves} and neither in this subcluster.')
-            print(f' 💡 Looks like you are about to make a failover between subclusters.')
+            print(' 💡 Looks like you are about to make a failover between subclusters.')
             print()
             continue
 
         if slave_count > len(alive_hostnames)-1:
             print(f' 👉 Error: master host reports {slave_count} slaves instead of {len(alive_hostnames)-1}: {slaves} vs {nonmasters}')
-            print(f' 💡 Looks like some slaves are not the part of this subcluster, probably you made or about to make a failover between subclusters.')
+            print(' 💡 Looks like some slaves are not the part of this subcluster, probably you made or about to make a failover between subclusters.')
             print()
             continue
 
         if slaves != nonmasters:
             print(f' 👉 Error: slaves reported by master do not correspond to the rest of the hosts: {slaves} vs {nonmasters}')
-            print(f' 💡 It is possible in case of failover or redis was restarted and sentinels have not reconfigured it yet (may take up to 5m).')
+            print(' 💡 It is possible in case of failover or redis was restarted and sentinels have not reconfigured it yet (may take up to 5m).')
             print()
             continue
 
@@ -162,10 +165,10 @@ def show_status(cluster, subcluster, db, list_only, no_sentinel):
             val = config_info[host][1].decode()
             if val != '1':
                 print(f' 👉 Error: {host} is reporting min-slaves-to-write set to {val} instead of 1.')
-                print(f' 💡 You need to run: CONFIG SET min-slaves-to-write 1')
+                print(' 💡 You need to run: CONFIG SET min-slaves-to-write 1')
                 print()
 
-        if no_sentinel:
+        if args.no_sentinel:
             continue
 
         # Check master host with sentinels.
@@ -178,6 +181,12 @@ def show_status(cluster, subcluster, db, list_only, no_sentinel):
             sentinel_master_ip = sentinel_info[host][0].decode()
             if sentinel_master_ip != master_ip:
                 print(f' 👉 Error: sentinel at {host} reports master ip {sentinel_master_ip} instead of {master_ip}.')
+                print()
+
+            sentinel_quorum = len(sentinel_sentinels[host])
+            if sentinel_quorum != 2:
+                print(f' 👉 Warning: sentinel at {host} reports incorrect quorum {sentinel_quorum} instead of 2.')
+                print(f' 💡 Please run "/redis_pack/redis-commander.py -c {args.cluster} --subcluster {subcluster} --reset-quorum --sentinel" command for that cluster/host/db.')
                 print()
 
 
@@ -205,7 +214,7 @@ def main():
     """Main."""
     parser = argparse.ArgumentParser(description='Redis database status script')
     parser.add_argument('--cluster', '-c', help='cluster name', required=True)
-    parser.add_argument('--subcluster', '-s', help='subcluster name', default='redisdb')
+    parser.add_argument('--subcluster', '-s', help='subcluster name')
     parser.add_argument('--db', '-d', help='redis db name')
     parser.add_argument('--list-only', '-l', help='Show the database list only, no checks', action='store_true')
     parser.add_argument('--no-sentinel', '-n', help='Do not query sentinel for consistency check', action='store_true')
@@ -218,7 +227,12 @@ def main():
 
     common.check_arguments(args, CONFIG_FILES, CONFIG, SECRETS, db_arg_check=False)
 
-    show_status(args.cluster, args.subcluster, args.db, args.list_only, args.no_sentinel)
+    if args.subcluster:
+        show_status(args, args.subcluster, CONFIG, SECRETS)
+    else:
+        subclusters = [i for i in CONFIG['instances'][args.cluster]]
+        for subcluster in subclusters:
+            show_status(args, subcluster, CONFIG, SECRETS)
 
 
 if __name__ == '__main__':

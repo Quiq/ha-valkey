@@ -1,83 +1,21 @@
 ---
+- include_vars: roles/redisdb/tasks/config.yml
+- include_vars: roles/redisdb/vars/main.yml
 
-# Setup third-party tools for debugging purpose
-- name: Install redis-cli and docker
-  apt:
-    update_cache: yes
-    pkg:
-      - redis-tools
-      - docker.io
-      - python3-pip
-
-- name: Docker python lib
-  pip:
-    name: docker
-    executable: pip3
-
-# Disable Transparent Huge Pages
-- name: Inject kernel.mm.transparent_hugepage
-  shell: "echo never > /sys/kernel/mm/transparent_hugepage/enabled && touch {{ansible_env.HOME}}/.kernel.mm.transparent_hugepage.never"
-  args:
-    creates: "{{ansible_env.HOME}}/.kernel.mm.transparent_hugepage.never"
-
-- name: Ensure auditing for processes that start prior to auditd is enabled 1/2 (configure grub)
-  replace:
-    path: /etc/default/grub
-    regexp: 'GRUB_CMDLINE_LINUX_DEFAULT=""'
-    replace: 'GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 transparent_hugepage=never"'
-  register: grub
-
-- name: Ensure auditing for processes that start prior to auditd is enabled 2/2 (update initrd image)
-  shell: update-grub
-  when: grub.changed
-
-# Add reserved ports we use to the ephemeral range
-- name: Reserve tcp ports in ephemeral port range
-  sysctl: >
-    name=net.ipv4.ip_local_reserved_ports
-    value="36379-36479,46379-46479,56379-56479"
-    state=present
-    ignoreerrors=yes
-
-# Enable vm.overcommit_memory, recommended by Redis
-- name: Enable vm.overcommit_memory
-  sysctl: >
-    name=vm.overcommit_memory
-    value=1
-    state=present
-    ignoreerrors=yes
-
-# Increase "net/core" subsys registered per network namespace
-- name: Increase net.core.somaxconn
-  sysctl: >
-    name=net.core.somaxconn
-    value=65535
-    state=present
-    ignoreerrors=yes
-
-# Setup Redis
-- name: Pull docker images
-  command: docker pull {{item}}
-  with_items:
-    - redis:{{redis_version}}
-    - haproxy:{{haproxy_version}}
-  register: docker_pull
-  changed_when: '"Downloaded newer image" in docker_pull.stdout'
-
-- set_fact: servicelist={{services[cluster][subcluster]}}
 - set_fact:
-    servicelist:
-      "{{db_var}}": "{{services[cluster][subcluster][db_var]}}"
-  when: db_var is defined
+    subcluster: "{{ansible_hostname|regex_replace('\\d+$', '')}}"
+    # Setup Commander (Redis web UI), one per host
+    # https://github.com/joeferner/redis-commander
+    # To set SSL certificate, update path in subcluster.yml
+    enable_commander: False
 
-- name: Iterate over services inside the subcluster
-  include_tasks: service.yml
-  with_dict:
-    - "{{servicelist}}"
-  loop_control:
-    loop_var: service_item
-  vars:
-    service: "{{service_item.key}}"
+    # Setup Redis and Haproxy Exporters, used by Prometheus monitoring, one per host
+    # https://github.com/Quiq/redis_exporter
+    # https://github.com/Quiq/haproxy_exporter
+    enable_exporters: False
+
+    # Add backup scripts and cron
+    enable_backup: False
 
 # Setup redis-commander
 - name: Install redis-commander.json
@@ -176,3 +114,5 @@
     minute: "{{run_minute}},{{run_minute|int + 15}},{{run_minute|int + 30}},{{run_minute|int + 45}}"
     job: "/opt/redis-backup.py >> /tmp/redis-backup.out 2>&1"
   when: enable_backup
+
+

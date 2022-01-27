@@ -3,6 +3,7 @@
 
 import argparse
 import sys
+import time
 
 import common_redis as common
 
@@ -47,6 +48,9 @@ def run_command(args):
     if args.show_conns:
         command = 'CLIENT LIST'
 
+    if args.reset_quorum:
+        command = 'SENTINEL RESET *'
+
     redis_obj = common.Redis(DEBUG, verbose=True)
     for db, port_offset in databases.items():
         print(f'DB: {db}')
@@ -66,8 +70,15 @@ def run_command(args):
                     if k not in connections:
                         connections[k] = 1
                     connections[k] += 1
-            else:
-                print(val)
+            elif args.reset_quorum:
+                if val == 1:
+                    print("SUCCESS!")
+                    print("Sleeping 2 seconds..")
+                    time.sleep(2)
+                else:
+                    print("Sentinel reset failed with")
+                    print(val)
+                    sys.exit(1)
 
         if args.show_conns:
             print('Connection collected from all the hosts:')
@@ -88,6 +99,7 @@ def main():
     parser.add_argument('--command', help='command to run')
     parser.add_argument('--list-dbs', '-l', help='show the database list', action='store_true')
     parser.add_argument('--show-conns', help='show connections', action='store_true')
+    parser.add_argument('--reset-quorum', help='reset sentinels quorum', action='store_true')
     parser.add_argument('--debug', help='debug mode', action='store_true')
     args = parser.parse_args()
 
@@ -97,7 +109,7 @@ def main():
 
     common.check_arguments(args, CONFIG_FILES, CONFIG, SECRETS, db_arg_check=False)
 
-    if not args.list_dbs and not args.command and not args.show_conns:
+    if not args.list_dbs and not args.command and not args.show_conns and not args.reset_quorum:
         print(f'ERROR: you need to specify one of the args: --command, --list-dbs, --show-conns')
         sys.exit(1)
 
