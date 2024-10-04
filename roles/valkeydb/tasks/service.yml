@@ -26,13 +26,13 @@
     key_file: /data/example.key
 
 - name: ">> {{service}} << Merge SSL crt and private key into one file for haproxy"
-  shell: cat "{{crt_file}}" "{{key_file}}" > /opt/haproxy/{{service}}/quiq.corp.crt.and.key.pem
+  shell: cat "{{crt_file}}" "{{key_file}}" > /opt/haproxy/{{service}}/example.crt.and.key.pem
   args:
-    creates: /opt/haproxy/{{service}}/quiq.corp.crt.and.key.pem
+    creates: /opt/haproxy/{{service}}/example.crt.and.key.pem
 
 - name: ">> {{service}} << Set permissions"
   file:
-    path: /opt/haproxy/{{service}}/quiq.corp.crt.and.key.pem
+    path: /opt/haproxy/{{service}}/example.crt.and.key.pem
     owner: nobody
     mode: 0640
 
@@ -123,7 +123,7 @@
     user: 65534
     volumes:
       - /opt/haproxy/{{service}}/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
-      - /opt/haproxy/{{service}}/quiq.corp.crt.and.key.pem:/etc/quiq.corp.crt.and.key.pem:ro
+      - /opt/haproxy/{{service}}/example.crt.and.key.pem:/etc/example.crt.and.key.pem:ro
   register: haproxy_container
 
 - name: ">> {{service}} << Restart haproxy"
