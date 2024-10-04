@@ -35,7 +35,7 @@
     {
       "label": "{{service}}",
       "host": "127.0.0.1",
-      "port": "{{haproxy_redis_ssl_port + services[cluster][subcluster][service]['port_offset']}}",
+      "port": "{{haproxy_valkey_ssl_port + services[cluster][subcluster][service]['port_offset']}}",
       "password": "{{secrets[cluster][subcluster][service]['password']}}",
       "tls": false,
       "dbIndex": "0"

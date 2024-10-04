@@ -4,29 +4,29 @@ You can set path to CA for your self-signed certificate using `REQUESTS_CA_BUNDL
 
 ```
 $ export SSL_VERIFY_FALSE=1
-$ ./redis-status.py -c testcluster1 --subcluster redisdb-mytest
+$ ./redis-status.py -c testcluster1 --subcluster valkeydb-mytest
 Cluster: testcluster1
-Subcluster: redisdb-mytest
+Subcluster: valkeydb-mytest
 Databases and port offsets: {'default': 0}
-Hosts: {'redisdb-mytest1.testcluster1.example.com': '10.0.7.72', 'redisdb-mytest2.testcluster1.example.com': '10.0.7.142', 'redisdb-mytest3.testcluster1.example.com': '10.0.7.202'}
+Hosts: {'valkeydb-mytest1.testcluster1.example.com': '10.0.7.72', 'valkeydb-mytest2.testcluster1.example.com': '10.0.7.142', 'valkeydb-mytest3.testcluster1.example.com': '10.0.7.202'}
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------
-Database                 Redis Port     redisdb-mytest1                    redisdb-mytest2                    redisdb-mytest3
+Database                 Redis Port     valkeydb-mytest1                    valkeydb-mytest2                    valkeydb-mytest3
                                         10.0.7.72                          10.0.7.142                         10.0.7.202
 ------------------------------------------------------------------------------------------------------------------------------------------------------
 default                  6379           slave                              MASTER                             slave
 
-$ ./redis-commander.py -c testcluster1 --subcluster redisdb-mytest --db default --command "config get maxmemory"
+$ ./redis-commander.py -c testcluster1 --subcluster valkeydb-mytest --db default --command "config get maxmemory"
 Cluster: testcluster1
-Subcluster: redisdb-mytest
+Subcluster: valkeydb-mytest
 Databases and port offsets: {'default': 0}
-Hosts: ['redisdb-mytest1.testcluster1.quiq.sh', 'redisdb-mytest2.testcluster1.quiq.sh', 'redisdb-mytest3.testcluster1.quiq.sh']
+Hosts: ['valkeydb-mytest1.testcluster1.quiq.sh', 'valkeydb-mytest2.testcluster1.quiq.sh', 'valkeydb-mytest3.testcluster1.quiq.sh']
 
 DB: default
-- redisdb-mytest1.testcluster1.quiq.sh:56379 config get maxmemory
+- valkeydb-mytest1.testcluster1.quiq.sh:56379 config get maxmemory
 [b'maxmemory', b'419430400']
-- redisdb-mytest2.testcluster1.quiq.sh:56379 config get maxmemory
+- valkeydb-mytest2.testcluster1.quiq.sh:56379 config get maxmemory
 [b'maxmemory', b'419430400']
-- redisdb-mytest3.testcluster1.quiq.sh:56379 config get maxmemory
+- valkeydb-mytest3.testcluster1.quiq.sh:56379 config get maxmemory
 [b'maxmemory', b'419430400']
 ```

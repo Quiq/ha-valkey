@@ -7,11 +7,11 @@
 # - local_action:
 #     module: ec2_instance_facts
 #     filters:
-#       "tag:stack_server_type": "{{cluster}}:redisdb"
+#       "tag:stack_server_type": "{{cluster}}:valkeydb"
 #   become: false
 ## but for demo these values simply hardcoded
 - set_fact: cluster="testcluster1"
-## here we assume that hostname is like redisdb-mysubcluster1.testcluster.example.com
+## here we assume that hostname is like valkeydb-mysubcluster1.testcluster.example.com
 - set_fact:
     subcluster: "{{ansible_hostname|regex_replace('\\d+$', '')}}"
 #
@@ -31,13 +31,13 @@
 # This adds haproxy to the monitoring chain and failover will be triggered in a case when haproxy on master went down
 - user:
     name: sentinel
-    comment: "Used to run Redis Sentinel containers"
+    comment: "Used to run Valkey Sentinel containers"
     uid: 64446
     shell: /usr/sbin/nologin
     group: nogroup
     create_home: no
 
-- name: Copy redis get-master script
+- name: Copy valkey get-master script
   copy: src=../../../scripts/{{item}} dest=/opt/cent/bin/ mode=0755
   with_items:
     - common_redis.py
@@ -73,7 +73,7 @@
     state=present
     ignoreerrors=yes
 
-# Enable vm.overcommit_memory, recommended by Redis
+# Enable vm.overcommit_memory, recommended by Valkey
 - name: Enable vm.overcommit_memory
   sysctl: >
     name=vm.overcommit_memory
@@ -89,11 +89,11 @@
     state=present
     ignoreerrors=yes
 
-# Setup Redis
+# Setup Valkey
 - name: Pull docker images
   command: docker pull {{item}}
   with_items:
-    - redis:{{redis_version}}
+    - valkey/valkey:{{valkey_version}}
     - haproxy:{{haproxy_version}}
   register: docker_pull
   changed_when: '"Downloaded newer image" in docker_pull.stdout'
