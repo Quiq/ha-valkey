@@ -1,10 +1,10 @@
 ---
-- include_vars: roles/redisdb/tasks/config.yml
-- include_vars: roles/redisdb/vars/main.yml
+- include_vars: roles/valkeydb/tasks/config.yml
+- include_vars: roles/valkeydb/vars/main.yml
 
 - set_fact:
     subcluster: "{{ansible_hostname|regex_replace('\\d+$', '')}}"
-    # Setup Commander (Redis web UI), one per host
+    # Setup Commander (web UI), one per host
     # https://github.com/joeferner/redis-commander
     # To set SSL certificate, update path in subcluster.yml
     enable_commander: False
@@ -19,7 +19,7 @@
 
 # Setup redis-commander
 - name: Install redis-commander.json
-  template: src=redis-commander.json dest=/opt/redis/ mode=0640 group=nogroup
+  template: src=redis-commander.json dest=/opt/valkey/ mode=0640 group=nogroup
   register: redis_commander_conf
   when: enable_commander
 
@@ -38,7 +38,7 @@
       NODE_EXTRA_CA_CERTS=/example.crt
     volumes:
       - /data/example.crt:/example.crt:ro
-      - /opt/redis/redis-commander.json:/redis-commander/config/local-production.json:ro
+      - /opt/valkey/redis-commander.json:/redis-commander/config/local-production.json:ro
   when: enable_commander
 
 - name: Restart redis-commander
@@ -46,7 +46,7 @@
   when: enable_commander and redis_commander_conf.changed
 
 - name: Install redis_exporter.config
-  template: src=redis_exporter.config dest=/opt/redis/ mode=0640 group=nogroup
+  template: src=redis_exporter.config dest=/opt/valkey/ mode=0640 group=nogroup
   register: redis_exporter_conf
   when: enable_exporters
 
@@ -62,7 +62,7 @@
     user: 65534:65534
     read_only: True
     volumes:
-      - /opt/redis/redis_exporter.config:/redis_exporter.config:ro
+      - /opt/valkey/redis_exporter.config:/redis_exporter.config:ro
   when: enable_exporters
 
 - name: Restart redis_exporter
@@ -94,25 +94,25 @@
 - name: Copy redis backup script
   copy: src={{item}} dest=/opt/ mode=0755
   with_items:
-    - scripts/common_redis.py
-    - scripts/redis-backup.py
+    - scripts/common_valkey.py
+    - scripts/valkey-backup.py
   when: enable_backup
 
-- name: Copy redis backup config
-  template: src=redis-backup-config.yml dest=/opt/ mode=0600
+- name: Copy valkey backup config
+  template: src=valkey-backup-config.yml dest=/opt/ mode=0600
   when: enable_backup
 
 - set_fact:
     run_minute="{{ 14|random(seed=inventory_hostname) }}"
   when: enable_backup
 
-- name: Add redis-backup cron
+- name: Add valkey-backup cron
   cron:
-    name: redis-backup
+    name: valkey-backup
     cron_file: backups
     user: root
     minute: "{{run_minute}},{{run_minute|int + 15}},{{run_minute|int + 30}},{{run_minute|int + 45}}"
-    job: "/opt/redis-backup.py >> /tmp/redis-backup.out 2>&1"
+    job: "/opt/valkey-backup.py >> /tmp/valkey-backup.out 2>&1"
   when: enable_backup
 
 

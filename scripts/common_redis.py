@@ -20,12 +20,12 @@ if 'REQUESTS_CA_BUNDLE' not in os.environ:
 # It makes it possible to run this script from any directory.
 rel_path = os.path.dirname(os.path.realpath(__file__)) + '/'
 config_files = {
-    'ANSIBLE_VAULT_PASS': os.path.expanduser('~') + '/.ssh/.vault_pass.txt',
-    'REDIS_CONFIG': rel_path+'../roles/redisdb/tasks/config.yml',
-    'REDIS_SECRETS': rel_path+'../roles/redisdb/vars/main.yml',
+    'ANSIBLE_VAULT_PASS': os.path.expanduser('~') + '/.ssh/.vault_pass1.txt',
+    'REDIS_CONFIG': rel_path+'../roles/valkeydb/tasks/config.yml',
+    'REDIS_SECRETS': rel_path+'../roles/valkeydb/vars/main.yml',
     'TLS_CA_CERTS': os.environ['REQUESTS_CA_BUNDLE'],
-    'TLS_CERT': rel_path+'../roles/redisdb/files/example.crt',
-    'TLS_CERT_KEY': rel_path+'../roles/redisdb/files/example.key',
+    'TLS_CERT': rel_path+'../roles/valkeydb/files/example.crt',
+    'TLS_CERT_KEY': rel_path+'../roles/valkeydb/files/example.key',
 }
 
 

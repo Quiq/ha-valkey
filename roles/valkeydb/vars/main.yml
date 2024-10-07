@@ -1,7 +1,7 @@
 # Cluster/service specific passwords (can be encrypted by ansible-vault)
 secrets:
   testcluster1:
-    redisdb-mytest:
+    valkeydb-mytest:
       default:
         password: testpass1
   #     dev:
@@ -9,15 +9,15 @@ secrets:
   #     qa:
   #       password: testpass3
   # testcluster2:
-  #   redisdb:
+  #   valkeydb:
   #     default:
   #       password: testpass1
   #     testdb1:
   #       password: testpass2
   # testcluster3:
-  #   redisdb:
+  #   valkeydb:
   #     default:
   #       password: testpass1
-  #   redisdb-testsubcluster:
+  #   valkeydb-testsubcluster:
   #     default:
   #       password: testpass2

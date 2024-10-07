@@ -55,7 +55,7 @@ def run_command(args):
     for db, port_offset in databases.items():
         print(f'DB: {db}')
         password = SECRETS[args.cluster][args.subcluster][db]['password']
-        direct_redis_port = CONFIG['haproxy_redis_local_ssl_port'] + port_offset
+        direct_redis_port = CONFIG['haproxy_valkey_local_ssl_port'] + port_offset
         sentinel_port = CONFIG['haproxy_sentinel_ssl_port'] + port_offset
 
         port = direct_redis_port
@@ -92,7 +92,7 @@ def main():
     """Main."""
     parser = argparse.ArgumentParser(description='Run command on each redis/sentinel instance')
     parser.add_argument('--cluster', '-c', help='cluster name', required=True)
-    parser.add_argument('--subcluster', '-s', help='subcluster name', default='redisdb')
+    parser.add_argument('--subcluster', '-s', help='subcluster name', default='valkeydb')
     parser.add_argument('--db', '-d', help='redis db name')
     parser.add_argument('--host', help='redis host to make changes instead of all')
     parser.add_argument('--sentinel', help='apply to sentinel instead of redis', action='store_true')

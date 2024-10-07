@@ -1,11 +1,11 @@
 ---
-- name: Install Redis HA cluster
-  hosts: redisha
+- name: Install Valkey HA cluster
+  hosts: valkeyha
   remote_user: ubuntu
   serial: 1
   become: yes
   become_method: sudo
 
   roles:
-    - redisdb
-    - redisdb-misc
+    - valkeydb
+    - valkeydb-misc

@@ -15,26 +15,26 @@ haproxy_redis_ssl_port: 6379
 haproxy_sentinel_ssl_port: 16379
 
 # Cluster > subcluster > instance.
-# DNS: <subcluster>N.<cluster>.example.com. Example: redisdb1.testcluster1.example.com
-# All subcluster names should start with "redisdb". Default subcluster name is redisdb.
+# DNS: <subcluster>N.<cluster>.example.com. Example: valkeydb1.testcluster1.example.com
+# All subcluster names should start with "valkeydb". Default subcluster name is valkeydb.
 instances:
   testcluster1:
-    redisdb-mytest:
+    valkeydb-mytest:
       srv1: 10.0.7.72
       srv2: 10.0.7.142
       srv3: 10.0.7.202
 
   # testcluster2:
-  #   redisdb:
+  #   valkeydb:
   #     srv1: 10.0.2.1
   #     srv2: 10.0.2.2
   #     srv3: 10.0.2.3
   # testcluster3:
-  #   redisdb:
+  #   valkeydb:
   #     srv1: 10.0.3.1
   #     srv2: 10.0.3.2
   #     srv3: 10.0.3.3
-  #   redisdb-testsubcluster:
+  #   valkeydb-testsubcluster:
   #     srv1: 10.0.3.4
   #     srv2: 10.0.3.5
   #     srv3: 10.0.3.6
@@ -45,7 +45,7 @@ instances:
 # Each service should use an unique port offset within the whole cluster, not just subcluster.
 services:
   testcluster1:
-    redisdb-mytest:
+    valkeydb-mytest:
       default:
         port_offset: 0
         maxmemory: 400mb
@@ -56,7 +56,7 @@ services:
   #       port_offset: 2
   #       maxmemory: 100mb
   # testcluster2:
-  #   redisdb:
+  #   valkeydb:
   #     default:
   #       port_offset: 0
   #       maxmemory: 100mb
@@ -64,11 +64,11 @@ services:
   #       port_offset: 1
   #       maxmemory: 100mb
   # testcluster3:
-  #   redisdb:
+  #   valkeydb:
   #     default:
   #       port_offset: 0
   #       maxmemory: 100mb
-  #   redisdb-testsubcluster:
+  #   valkeydb-testsubcluster:
   #     default:
   #       port_offset: 0
   #       maxmemory: 100mb

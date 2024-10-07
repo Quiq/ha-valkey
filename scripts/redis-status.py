@@ -61,8 +61,8 @@ def show_status(args, subcluster, config, secrets):
     redis_obj = common.Redis(args.debug, verbose=False)
     for db, port_offset in databases.items():
         password = secrets[args.cluster][subcluster][db]['password']
-        redis_port = config['haproxy_redis_ssl_port'] + port_offset
-        direct_redis_port = config['haproxy_redis_local_ssl_port'] + port_offset
+        redis_port = config['haproxy_valkey_ssl_port'] + port_offset
+        direct_redis_port = config['haproxy_valkey_local_ssl_port'] + port_offset
         sentinel_port = config['haproxy_sentinel_ssl_port'] + port_offset
 
         redis_info = {}

@@ -1,6 +1,6 @@
-# Redis
-haproxy_version: 2.4.8-alpine
-redis_version: 6.2.6-alpine
+# Versions
+haproxy_version: 2.9.11-alpine
+valkey_version: 7.2.6-alpine
 redis_exporter_version: 20191114
 redis_commander_version: 20191212
 haproxy_exporter_version: 20190408
