@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Get Redis master IP. Used by ansible to update redisdb hosts."""
+"""Get Redis master IP. Used by ansible to update valkeydb hosts."""
 
 import argparse
 import socket
@@ -9,7 +9,7 @@ import common_redis as common
 
 def get_current_master(cluster, db, subcluster):
     """Get current master."""
-    redis_conf = f'/opt/redis/{db}/redis.conf'
+    redis_conf = f'/opt/valkey/{db}/valkey.conf'
 
     with open(redis_conf, 'r') as conf:
         for line in conf.readlines():

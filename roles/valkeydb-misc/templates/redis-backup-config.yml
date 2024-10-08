@@ -1,4 +1,4 @@
-haproxy_redis_local_ssl_port: {{haproxy_redis_local_ssl_port}}
+haproxy_valkey_local_ssl_port: {{haproxy_valkey_local_ssl_port}}
 haproxy_sentinel_ssl_port: {{haproxy_sentinel_ssl_port}}
 
 # cluster: {{cluster}}

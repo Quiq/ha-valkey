@@ -29,8 +29,8 @@ def do_failover(cluster, subcluster, db, enable_fe, disable_fe, target_subcluste
     domain = CONFIG['domain']
     password = SECRETS[cluster][subcluster][db]['password']
     port_offset = CONFIG['services'][cluster][subcluster][db]['port_offset']
-    redis_port = CONFIG['haproxy_redis_ssl_port'] + port_offset
-    direct_redis_port = CONFIG['haproxy_redis_local_ssl_port'] + port_offset
+    redis_port = CONFIG['haproxy_valkey_ssl_port'] + port_offset
+    direct_redis_port = CONFIG['haproxy_valkey_local_ssl_port'] + port_offset
     sentinel_port = CONFIG['haproxy_sentinel_ssl_port'] + port_offset
     haproxy_api_port = CONFIG['haproxy_api_port'] + port_offset
     is_error = False
@@ -196,7 +196,7 @@ def do_failover(cluster, subcluster, db, enable_fe, disable_fe, target_subcluste
     hosts = list(ip_hosts.values())
     while hosts:
         output = haproxy.call_haproxy_api(hosts[-1], ['show sess'])
-        if 'fe=api_loopback_ssl' in output and 'fe=ft_redis_ssl' not in output:
+        if 'fe=api_loopback_ssl' in output and 'fe=ft_valkey_ssl' not in output:
             hosts.pop()
 
     if disable_fe:
@@ -408,9 +408,9 @@ class Haproxy:
         health_commands = []
         for alias in set(ip_aliases):
             health_commands.extend([
-                f'{action} health {alias}/redis1',
-                f'{action} health {alias}/redis2',
-                f'{action} health {alias}/redis3'
+                f'{action} health {alias}/valkey1',
+                f'{action} health {alias}/valkey2',
+                f'{action} health {alias}/valkey3'
             ])
 
         for host in ip_hosts:
@@ -421,9 +421,9 @@ class Haproxy:
 
     def health(self, action, ip_hosts, master_alias):
         health_commands = [
-            f'set server {master_alias}/redis1 health {action}',
-            f'set server {master_alias}/redis2 health {action}',
-            f'set server {master_alias}/redis3 health {action}'
+            f'set server {master_alias}/valkey1 health {action}',
+            f'set server {master_alias}/valkey2 health {action}',
+            f'set server {master_alias}/valkey3 health {action}'
         ]
         for host in ip_hosts:
             if host not in self.commands:
@@ -432,7 +432,7 @@ class Haproxy:
             self.commands[host].extend(health_commands)
 
     def frontend(self, action, ip_hosts):
-        health_commands = [f"{action} frontend ft_redis_ssl"]
+        health_commands = [f"{action} frontend ft_valkey_ssl"]
         for host in ip_hosts:
             if host not in self.commands:
                 self.commands[host] = []
@@ -441,9 +441,9 @@ class Haproxy:
 
     def sessions(self, action, ip_hosts, master_alias):
         health_commands = [
-            f'{action} sessions server {master_alias}/redis1',
-            f'{action} sessions server {master_alias}/redis2',
-            f'{action} sessions server {master_alias}/redis3'
+            f'{action} sessions server {master_alias}/valkey1',
+            f'{action} sessions server {master_alias}/valkey2',
+            f'{action} sessions server {master_alias}/valkey3'
         ]
         for host in ip_hosts:
             if host not in self.commands:
@@ -547,7 +547,7 @@ def select_masters(cluster, subcluster, host):
     redis_obj = common.Redis(DEBUG, verbose=False)
     for db, port_offset in databases.items():
         password = SECRETS[cluster][subcluster][db]['password']
-        direct_redis_port = CONFIG['haproxy_redis_local_ssl_port'] + port_offset
+        direct_redis_port = CONFIG['haproxy_valkey_local_ssl_port'] + port_offset
 
         redis_info = {}
         # Straight Redis via HAProxy SSL.
@@ -566,7 +566,7 @@ def main():
     parser = argparse.ArgumentParser(description='Redis failover script')
     group = parser.add_mutually_exclusive_group(required=True)
     parser.add_argument('--cluster', '-c', help='cluster name', required=True)
-    parser.add_argument('--subcluster', '-s', help='subcluster name', default='redisdb')
+    parser.add_argument('--subcluster', '-s', help='subcluster name', default='valkeydb')
     group.add_argument('--db', '-d', help='redis db name')
     parser.add_argument('--debug', help='debug mode', action='store_true')
     parser.add_argument('--enable-fe', help='enable frontends and healthchecks (not a part of failover)', action='store_true')

@@ -20,7 +20,7 @@ import yaml
 import common_redis as common
 
 TASK_NAME = os.path.basename(__file__).split('.')[0]
-CONFIG_FILE = '/opt/redis-backup-config.yml'
+CONFIG_FILE = '/opt/valkey-backup-config.yml'
 
 HOSTNAME = os.uname()[1]
 HOSTALIAS = HOSTNAME.replace('.example.com', '')
@@ -58,7 +58,7 @@ def run_backup(db, debug, force):
         print('###' * 30)
         print(f'DB: {db}')
         password = CONFIG['databases'][db]['password']
-        direct_redis_port = CONFIG['haproxy_redis_local_ssl_port'] + port_offset
+        direct_redis_port = CONFIG['haproxy_valkey_local_ssl_port'] + port_offset
         sentinel_port = CONFIG['haproxy_sentinel_ssl_port'] + port_offset
 
         data = redis_obj.run_command(HOSTNAME, direct_redis_port, password, ['INFO', 'replication'])
